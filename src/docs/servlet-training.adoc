@@ -1,0 +1,295 @@
+= Esercitazione su Servlet
+Cristian Lucchesi <cristian.lucchesi@gmail.com>
+2016-02-21
+:source-highlighter: highlightjs
+:backend: revealjs
+:revealjs_theme: night
+:revealjs_slideNumber: true
+
+== Preparazione ambiente di sviluppo
+
+ * Java 8 -> http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html
+ * Editor Eclipse -> http://www.eclipse.org
+ * Maven -> https://maven.apache.org
+ * Database h2 -> http://www.h2database.com/
+ * Apache Tomcat v8 -> http://tomcat.apache.org
+
+== Installazione di Apache Tomcat
+[%step]
+ * Scaricare la versione 8 di Tomcat per il proprio sistema operativo
+ * Scomprimere lo zip
+ * Configurare Tomcat in Eclipse
+ ** Aprire la _view_ "Servers"
+ ** Tasto destro -> New -> Server
+ ** Selezionare Tomcat v8.0 server -> Next
+ ** Tomcat Installation Directory: -> Selezionare directory dove abbiamo scompresso Tomcat
+
+== Esercitazione su Java e Servlet
+
+Creazione di una applicazione web *anagrafica*.
+
+Passi principali:
+[%step]
+* Creazione di un Dynamic Web Project + Maven
+* Pagina Home del Progetto
+* Utilizzo componenti del JDBC Tutorial
+** DBConfig, Employee, EmployeeDao
+* Lista del personale (Model + Controller + View)
+* Visualizzazione dei dati
+* Creazione del personale
+* Modifica dei dati
+* Funzionalità di ricerca del personale
+
+== Creazione del progetto
+
+[%step]
+* in Eclipse -> file -> New -> Dynamic Web Project
+** "Project Name:" -> "servlet-training"
+** Verificare che il target Runtime sia Apache Tomcat
+** Nella configurazione *Source folders on build path* -> rimuovere *src* ed aggiungere *src/main/java*
+** In configurazione Web Module -> Selezionare *Generate web.xml deployment descriptor*
+* Convertire il progetto in Maven Project
+** Tasto destro sul progetto -> Configure -> Convert to Maven Project
+
+== Creazione home page progetto
+
+[%step]
+* In WebContent creare una pagina HTML index.html
+** contenente il titolo *Anagrafica personale*
+** il messaggio <p>Benvenuti nell'anagrafica del personale!</p>
+* nella _view_ *Servers* -> selezionare Tomcat v8 -> tasto destro *Add and remove*
+** aggiungere il progetto *servlet-training*
+** avviare Tomcat
+* con il browser andare all'indirizzo http://localhost:8080/servlet-training
+
+== Creazione HelloWorld servlet
+
+[%step]
+* creare un package tutorial.servlet
+* creare una nuova Servlet -> File -> New -> Servlet
+** package name: *tutorial.servlet*
+** class name: *HelloWorldServlet*
+** url mapping: */hello*
+** method stub: *doGet*
+* nel metodo doGet stampare l'html di base con h1 *Hello World !*
+* controllare all'indirizzo http://localhost:8080/servlet-training/hello...
+
+== Creazione HelloWorld servlet^(2)^
+
+[[app-listing]]
+[source,java]
+.HelloWorldServlet.java
+----
+include::{sourcedir}/tutorial/servlet/HelloWorldServlet.java[lines=15..29]
+----
+
+== HelloWorldServlet con parametro
+
+* stampare "Hello *name*" al posto di *Hello World !*
+** al posto di *name* utilizzare il parametro *name" prelevato dalla request
+* provare con l'indirizzo http://localhost:8080/servlet-training/hello?name=Cristian
+
+== HelloWorldServlet con parametro^(2)^
+[[app-listing]
+[source,java]
+.HelloWorldServlet.java
+----
+  //...
+  @Override
+  public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    response.setContentType("text/html; charset=utf-8");
+    try (PrintWriter out = response.getWriter()) {
+      out.println(
+          "<html><head><title>Hello world" +
+          "</title></head><body>");
+      out.println(
+          String.format("<h1> Hello %s ! </h1>", request.getParameter("name")));
+      out.println("</body></html>");
+    }
+  }
+----
+
+== Anagrafica via WEB - preparazione
+
+[%step]
+* aggiungere le dipendenze maven
+** h2database, lombok (projectlombok), jstl (javax.servlet)
+* copiare dal progetto di ieri le classi
+** DBConfig, Employee, EmployeeDao
+
+== Anagrafica via WEB - h2 load class
+[source,java]
+----
+include::{sourcedir}/tutorial/jdbc/DBConfig.java[lines=20..29]
+----
+
+== Lista Impiegati
+
+[%step]
+* creare una Servlet *PersonList*
+** url mapping _persons/list_
+** che utilizzi il metodo EmployeeDao::list
+** che visualizzi la lista degli impiegati
+* creare una jsp "persons/list.jsp"
+** che mostri la lista degli impiegati
+** hint:
+*** RequestDispatcher view = request.getRequestDispatcher("/persons/list.jsp");
+*** view.forward(request, response);
+
+== Lista impiegati -> Servlet
+
+[source,java]
+----
+@WebServlet("/persons/list")
+public class PersonList extends HttpServlet {
+
+  private final EmployeeDao employeeDao;
+
+  public PersonList() {
+    super();
+    employeeDao = new EmployeeDao();
+  }
+
+  protected void doGet(HttpServletRequest request, HttpServletResponse response)
+    throws ServletException, IOException {
+    try {
+      List<Employee> employees = employeeDao.list(Optional.empty());
+      request.setAttribute("employees", employees);
+      RequestDispatcher view = request.getRequestDispatcher("/persons/list.jsp");
+      view.forward(request, response);
+    } catch (SQLException e) {
+      response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+  }
+}
+----
+
+== Lista impiegati -> JSP
+
+* creare la cartella WEBContent/ *persons*
+* creare al suo interno la JSP *list.jsp*
+* utilizzare `<c:forEach items="${employees}" var="e">`
+
+== Lista impiegati -> JSP^(2)^
+
+[[app-listing]]
+[source,java]
+.persons/list.jsp
+----
+include::{webcontentdir}/persons/list.jsp[lines=1..10;12;18..21]
+          ${e}
+include::{webcontentdir}/persons/list.jsp[lines=23..27]
+----
+
+== Nuovo impiegato -> Form di creazione
+[%step]
+* creare la jsp */persons/blank.jsp*
+* inserire una form con due campi input: name, surname
+** i campi della form devono avere come valore ${name} e ${surname}
+* il metodo deve essere *POST*, l'action *./new*
+
+== Nuovo impiegato -> Form di creazione^(2)^
+[[app-listing]]
+[source,java]
+./persons/blank.jsp
+----
+<!-- definizione html, body, h1..-->
+include::{webcontentdir}/persons/blank.jsp[lines=11;13..26]
+<!-- chiusura body e html -->
+----
+
+== Servlet /persons/new
+[%step]
+
+* creare la servlet PersonNew
+* con metodi doGet e doPost per implementare il rendering della form ed il salvataggio della persona
+* url mapping */persons/new*
+* nel metodo *doGet* fare il dispatching a */persons/blank.jsp*
+* nel metodo *doPost* estrarre i parametri per name e surname
+** in caso di errori (name o surname mancanti) mostrare ancora la JSP */persons/blank.jsp*
+** in caso di successo salvare l'employee (utilizzando il DAO) e fare redirect a *./list*
+
+== Servlet /persons/new doGet
+[[app-listing]]
+[source,java]
+.PersonNew.java
+----
+include::{sourcedir}/tutorial/servlet/mvc/PersonNew.java[lines=18..19;21;26..29;34..37]
+----
+
+== Servlet /persons/new doPost
+
+[[app-listing]]
+[source,java]
+.PersonNew.java
+----
+include::{sourcedir}/tutorial/servlet/mvc/PersonNew.java[lines=42..58]
+----
+
+== Modifica dei dipendenti
+
+* rendiamo ri-utilizzabile la form con i dati dell'Employee
+** creare una jsp _form.jsp contenente i campi input
+* creiamo una JSP */persons/edit.jsp* che importi la form precedente
+** <c:import url="./_form.jsp" />
+** con aggiunto un campo hidden per l'id dell'Employee
+
+== Modifica dei dipendenti^(2)^
+
+* creiamo una Servlet *PersonEdit*
+* url mapping */persons/new*
+* nel metodo *doGet* fare il dispatching a */persons/edit.jsp*
+* nel metodo *doPost* estrarre i parametri per salvare l'Employee
+** in caso di errori (name o surname mancanti) mostrare ancora la JSP */persons/edit.jsp*
+** in caso di successo salvare l'employee (utilizzando il DAO) e fare redirect a *./list*
+
+== Ri-uso form per Dipendente
+
+* copiare il contenuto della form in questo nuovo file *_form.jsp*
+
+[[app-listing]]
+[source,java]
+._form.html
+----
+include::{webcontentdir}/persons/_form.jsp[]
+----
+
+== Form di modifica Dipendente
+
+[[app-listing]]
+[source,java]
+.edit.html
+----
+<!-- definizione html, body, h1..-->
+include::{webcontentdir}/persons/edit.jsp[lines=11;13..20]
+<!-- chiusura body e html -->
+----
+
+== Servlet /persons/edit doGet
+[[app-listing]]
+[source,java]
+.PersonEdit.java
+----
+include::{sourcedir}/tutorial/servlet/mvc/PersonEdit.java[lines=37..57]
+----
+
+== Servlet /persons/new doPost
+
+[[app-listing]]
+[source,java]
+.PersonEdit.java
+----
+include::{sourcedir}/tutorial/servlet/mvc/PersonEdit.java[lines=61..81]
+----
+
+== Link alla modifica Dipendente
+
+[[app-listing]]
+[source,java]
+./persons/list.jsp
+----
+include::{webcontentdir}/persons/list.jsp[lines=20..24]
+----
+
+* nella lista del personale inserire un link alla nuova funzionalità di modifica
+
