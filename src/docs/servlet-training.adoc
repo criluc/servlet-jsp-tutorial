@@ -80,7 +80,22 @@ Passi principali:
 [source,java]
 .HelloWorldServlet.java
 ----
-include::{sourcedir}/tutorial/servlet/HelloWorldServlet.java[lines=15..29]
+@WebServlet(name="Hello World Servlet", urlPatterns="/hello")
+public class HelloWorldServlet extends HttpServlet {
+
+  @Override
+  public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    response.setContentType("text/html; charset=utf-8");
+    try (PrintWriter out = response.getWriter()) {
+      out.println(
+          "<html><head><title>Hello world" +
+          "</title></head><body>");
+      out.println(
+          String.format("<h1> Hello %s ! </h1>", request.getParameter("name")));
+      out.println("</body></html>");
+    }
+  }
+}
 ----
 
 == HelloWorldServlet con parametro
@@ -94,19 +109,19 @@ include::{sourcedir}/tutorial/servlet/HelloWorldServlet.java[lines=15..29]
 [source,java]
 .HelloWorldServlet.java
 ----
-  //...
-  @Override
-  public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
-    response.setContentType("text/html; charset=utf-8");
-    try (PrintWriter out = response.getWriter()) {
-      out.println(
-          "<html><head><title>Hello world" +
-          "</title></head><body>");
-      out.println(
-          String.format("<h1> Hello %s ! </h1>", request.getParameter("name")));
-      out.println("</body></html>");
-    }
+//...
+@Override
+public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
+  response.setContentType("text/html; charset=utf-8");
+  try (PrintWriter out = response.getWriter()) {
+    out.println(
+        "<html><head><title>Hello world" +
+        "</title></head><body>");
+    out.println(
+        String.format("<h1> Hello %s ! </h1>", request.getParameter("name")));
+    out.println("</body></html>");
   }
+}
 ----
 
 == Anagrafica via WEB - preparazione
@@ -120,7 +135,16 @@ include::{sourcedir}/tutorial/servlet/HelloWorldServlet.java[lines=15..29]
 == Anagrafica via WEB - h2 load class
 [source,java]
 ----
-include::{sourcedir}/tutorial/jdbc/DBConfig.java[lines=20..29]
+public static Connection getConnection() throws SQLException {
+  try {
+    //Necessario per far si che Tomcat carichi il driver JDBC correttamente
+    Class.forName("org.h2.Driver");
+  } catch (ClassNotFoundException e) {
+    throw new RuntimeException("Driver h2 not found");
+  }
+  return DriverManager.getConnection(
+      DBConfig.DB_URL, DBConfig.DB_USER, DBConfig.DB_PASSWORD);
+}
 ----
 
 == Lista Impiegati
@@ -176,9 +200,27 @@ public class PersonList extends HttpServlet {
 [source,java]
 .persons/list.jsp
 ----
-include::{webcontentdir}/persons/list.jsp[lines=1..10;12;18..21]
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+    pageEncoding="UTF-8"%>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Elenco dipendenti</title>
+</head>
+<body>
+  <h1>Anagrafica Dipendenti</h1>
+  <h2>Elenco dipendenti</h2>
+  <ul>
+    <c:forEach items="${employees}" var="e">
+       <li>
           ${e}
-include::{webcontentdir}/persons/list.jsp[lines=23..27]
+       </li>
+    </c:forEach>
+  </ul>
+</body>
+</html>
 ----
 
 == Nuovo impiegato -> Form di creazione
@@ -194,7 +236,20 @@ include::{webcontentdir}/persons/list.jsp[lines=23..27]
 ./persons/blank.jsp
 ----
 <!-- definizione html, body, h1..-->
-include::{webcontentdir}/persons/blank.jsp[lines=11;13..26]
+<h2>Nuovo dipendente</h2>
+<form action="./new" method="POST">
+  <div>
+    <label for="name">Nome</label>
+    <input type="text" name="name" value="${name}" />
+  </div>
+  <div>
+    <label for="name">Cognome</label>
+    <input type="text" name="surname" value="${surname}" />
+  </div>
+  <div class="buttons">
+    <input type="submit" name="submit" value="Salva" />
+  </div>
+</form>
 <!-- chiusura body e html -->
 ----
 
@@ -214,7 +269,21 @@ include::{webcontentdir}/persons/blank.jsp[lines=11;13..26]
 [source,java]
 .PersonNew.java
 ----
-include::{sourcedir}/tutorial/servlet/mvc/PersonNew.java[lines=18..19;21;26..29;34..37]
+@WebServlet("/persons/new")
+public class PersonNew extends HttpServlet {
+
+  private final EmployeeDao employeeDao;
+
+  public PersonNew() {
+    super();
+    employeeDao = new EmployeeDao();
+  }
+
+  protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+    RequestDispatcher view = request.getRequestDispatcher("/persons/blank.jsp");
+    view.forward(request, response);
+  }
+}
 ----
 
 == Servlet /persons/new doPost
@@ -223,7 +292,23 @@ include::{sourcedir}/tutorial/servlet/mvc/PersonNew.java[lines=18..19;21;26..29;
 [source,java]
 .PersonNew.java
 ----
-include::{sourcedir}/tutorial/servlet/mvc/PersonNew.java[lines=42..58]
+  protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+    String name = request.getParameter("name");
+    String surname = request.getParameter("surname");
+    //Validazione dei parametri di ingresso
+    if (name == null || name.equals("") || surname == null || surname.equals("")) {
+      //TODO: inserire anche un messaggio di errore
+      RequestDispatcher view = request.getRequestDispatcher("/persons/blank.jsp");
+      view.forward(request, response);
+      return;
+    }
+    try {
+      employeeDao.persist(name, surname);
+      response.sendRedirect("./list");
+    } catch (SQLException e) {
+      response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+  }
 ----
 
 == Modifica dei dipendenti
@@ -251,7 +336,14 @@ include::{sourcedir}/tutorial/servlet/mvc/PersonNew.java[lines=42..58]
 [source,java]
 ._form.html
 ----
-include::{webcontentdir}/persons/_form.jsp[]
+<div>
+  <label for="name">Nome</label>
+  <input type="text" name="name" value="${name}" />
+</div>
+<div>
+  <label for="name">Cognome</label>
+  <input type="text" name="surname" value="${surname}" />
+</div>
 ----
 
 == Form di modifica Dipendente
@@ -260,8 +352,17 @@ include::{webcontentdir}/persons/_form.jsp[]
 [source,java]
 .edit.html
 ----
-<!-- definizione html, body, h1..-->
-include::{webcontentdir}/persons/edit.jsp[lines=11;13..20]
+<!-- definizione html, body, ..-->
+<h1>Modifica ${name} ${surname}</h1>
+	
+<form action="./edit" method="POST">
+  <input type="hidden" name="id" value="${id}" />
+  <c:import url="./_form.jsp" />
+		
+  <div class="buttons">
+    <input type="submit" name="submit" value="Salva" />
+  </div>		
+</form>
 <!-- chiusura body e html -->
 ----
 
@@ -270,7 +371,26 @@ include::{webcontentdir}/persons/edit.jsp[lines=11;13..20]
 [source,java]
 .PersonEdit.java
 ----
-include::{sourcedir}/tutorial/servlet/mvc/PersonEdit.java[lines=37..57]
+  protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+      RequestDispatcher view = request.getRequestDispatcher("/persons/edit.jsp");
+      String id = request.getParameter("id");
+      if (id == null || id.equals("")) {
+        response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        return;
+      }
+      try {
+        Optional<Employee> employee =
+            employeeDao.findById(Integer.parseInt(id));
+        request.setAttribute("id", employee.get().getId());
+        request.setAttribute("name", employee.get().getName());
+        request.setAttribute("surname", employee.get().getSurname());
+      } catch (NumberFormatException nfe) {
+        response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+      } catch (SQLException e) {
+        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      }
+      view.forward(request, response);
+  }
 ----
 
 == Servlet /persons/new doPost
@@ -279,7 +399,27 @@ include::{sourcedir}/tutorial/servlet/mvc/PersonEdit.java[lines=37..57]
 [source,java]
 .PersonEdit.java
 ----
-include::{sourcedir}/tutorial/servlet/mvc/PersonEdit.java[lines=61..81]
+  protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+      String name = request.getParameter("name");
+      String surname = request.getParameter("surname");
+      String id = request.getParameter("id");
+      //Validazione dei parametri di ingresso
+      if (id == null || id.equals("") || name == null || name.equals("")
+          || surname == null || surname.equals("")) {
+        //TODO: inserire anche un messaggio di errore
+        RequestDispatcher view = request.getRequestDispatcher("/persons/edit.jsp");
+        view.forward(request, response);
+        return;
+      }
+      try {
+        employeeDao.save(Employee.builder()
+            .id(Integer.parseInt(id)).name(name).surname(surname).build());
+        //Inserire un messaggi di evento completato con successo
+        response.sendRedirect("./list");
+      } catch (SQLException e) {
+        response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      }
+  }
 ----
 
 == Link alla modifica Dipendente
@@ -288,8 +428,11 @@ include::{sourcedir}/tutorial/servlet/mvc/PersonEdit.java[lines=61..81]
 [source,java]
 ./persons/list.jsp
 ----
-include::{webcontentdir}/persons/list.jsp[lines=20..24]
+  <c:forEach items="${employees}" var="e">
+     <li>
+       <a href="./edit?id=${e.id}">${e}</a>
+     </li>
+  </c:forEach>
 ----
 
 * nella lista del personale inserire un link alla nuova funzionalità di modifica
-
