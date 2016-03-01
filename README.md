@@ -4,7 +4,9 @@ Tutorial in Italiano su Java Servlet e Java Server Pages (JSP).
 Il progetto contiene:
  - le slide introduttive all'utilizzo delle Servlet e delle JSP che contengono le basi
  della teoria generale e degli esempi pratici
- - le slide per un'esercizione sull'utilizzo di Servlet e JSP
+ - le slide per un'esercizione sull'utilizzo di Servlet e JSP, disponibili nei formati:
+  - revealjs dentro il file slide-esercizione.zip
+  - asciidoctor nella file src/docs/servlet-training.adoc
  - il codice sorgente sia degli esempi mostrati nella teoria che nell'esercitazione
 
 Il progetto utilizza inoltre delle classi tratte dal tutorial
