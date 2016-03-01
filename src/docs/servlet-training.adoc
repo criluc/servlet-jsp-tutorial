@@ -105,7 +105,7 @@ public class HelloWorldServlet extends HttpServlet {
 * provare con l'indirizzo http://localhost:8080/servlet-training/hello?name=Cristian
 
 == HelloWorldServlet con parametro^(2)^
-[[app-listing]
+[[app-listing]]
 [source,java]
 .HelloWorldServlet.java
 ----
